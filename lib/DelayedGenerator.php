@@ -2,10 +2,8 @@
 
 namespace OCA\DelayedPreview;
 
-use OC\Preview\Generator;
-use OCP\Files\File;
-use OCP\IPreview;
 use OC\Preview\GeneratorHelper;
+use OCP\Files\File;
 use OCP\Files\IAppData;
 use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
@@ -13,12 +11,12 @@ use OCP\Files\SimpleFS\ISimpleFile;
 use OCP\Files\SimpleFS\ISimpleFolder;
 use OCP\IConfig;
 use OCP\IImage;
+use OCP\IPreview;
 use OCP\Preview\IProvider;
 use OCP\Preview\IProviderV2;
 use OCP\Preview\IVersionedPreviewFile;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\EventDispatcher\GenericEvent;
-use OCP\IRequest;
 
 class DelayedGenerator {
 
@@ -32,9 +30,6 @@ class DelayedGenerator {
     private $helper;
     /** @var EventDispatcherInterface */
     private $eventDispatcher;
-
-    protected $waitingPreview;
-    protected $redis;
 
     /**
      * @param IConfig $config
@@ -79,6 +74,7 @@ class DelayedGenerator {
             throw new NotFoundException('Cannot read file');
         }
 
+
         $this->eventDispatcher->dispatch(
             IPreview::EVENT,
             new GenericEvent($file, [
@@ -105,29 +101,10 @@ class DelayedGenerator {
 
         // Get the max preview and infer the max preview sizes from that
         $maxPreview = $this->getMaxPreview($previewFolder, $file, $mimeType, $previewVersion);
-        if ($maxPreview === false) {
-            $this->pushToQueue(
-                $file->getOwner()->getUID(),
-                $file->getId(),
-                $width,
-                $height,
-                $crop,
-                $mode,
-                $mimeType
-            );
-            if (strpos(\OC::$server->getRequest()->getRequestUri()
-                    , '/core/preview.png') !== false) {
-                throw new NotFoundException();
-            } else {
-                return $this->getWaitingPreview();
-            }
-        }
-
         if ($maxPreview->getSize() === 0) {
             $maxPreview->delete();
             throw new NotFoundException('Max preview size 0, invalid!');
         }
-
 
         list($maxWidth, $maxHeight) = $this->getPreviewSize($maxPreview, $previewVersion);
 
@@ -151,21 +128,7 @@ class DelayedGenerator {
                 $preview = $this->getCachedPreview($previewFolder, $width, $height, $crop, $maxPreview->getMimeType(), $previewVersion);
             } catch (NotFoundException $e) {
                 if (PHP_SAPI !== 'cli') {
-                    $this->pushToQueue(
-                        $file->getOwner()->getUID(),
-                        $file->getId(),
-                        $width,
-                        $height,
-                        $crop,
-                        $mode,
-                        $mimeType
-                    );
-                    if (strpos(\OC::$server->getRequest()->getRequestUri()
-                            , '/core/preview.png') !== false) {
-                        throw $e;
-                    } else {
-                        return $this->getWaitingPreview();
-                    }
+                    throw new $e;
                 }
                 $preview = $this->generatePreview($previewFolder, $maxPreview, $width, $height, $crop, $maxWidth, $maxHeight, $previewVersion);
             }
@@ -186,7 +149,7 @@ class DelayedGenerator {
      * @param File $file
      * @param string $mimeType
      * @param string $prefix
-     * @return ISimpleFile | boolean
+     * @return ISimpleFile
      * @throws NotFoundException
      */
     private function getMaxPreview(ISimpleFolder $previewFolder, File $file, $mimeType, $prefix) {
@@ -200,7 +163,7 @@ class DelayedGenerator {
         }
 
         if (PHP_SAPI !== 'cli') {
-            return false;
+            throw new NotFoundException();
         }
 
         $previewProviders = $this->previewManager->getProviders();
@@ -454,22 +417,6 @@ class DelayedGenerator {
         }
 
         return $folder;
-
-        $parent = substr(sprintf("%'.02d", $file->getId()), -2);
-        $name = $parent . '/' . $file->getId();
-
-        try {
-            $folder = $this->appData->getFolder($name);
-        } catch (NotFoundException $e) {
-            try {
-                $this->appData->getFolder($parent);
-            } catch (NotFoundException $e) {
-                $this->appData->newFolder($parent);
-            }
-            $folder = $this->appData->newFolder($name);
-        }
-
-        return $folder;
     }
 
     /**
@@ -487,50 +434,6 @@ class DelayedGenerator {
                 return 'gif';
             default:
                 throw new \InvalidArgumentException('Not a valid mimetype');
-        }
-    }
-
-    protected function getWaitingPreview() {
-        if (! $this->waitingPreview) {
-            $this->waitingPreview = new \OCP\Files\SimpleFS\InMemoryFile(
-                'waiting.png',
-                file_get_contents(__DIR__ . '/../img/waiting.png')
-            );
-        }
-        return $this->waitingPreview;
-    }
-
-    protected function getRedis() {
-        if ($this->redis === null) {
-            $this->redis = new \Redis;
-            $config = $this->config->getSystemValue("redis");
-            $this->redis->connect($config['host'], $config['port'], $config['timeout']);
-        }
-        return $this->redis;
-    }
-
-    protected function pushToQueue(
-        $uid,
-        $id,
-        $width,
-        $height,
-        $crop,
-        $mode,
-        $mimeType
-    ) {
-        $redis = $this->getRedis();
-        $key = sprintf('dp:%s:%d:%d', $id, $width, $height);
-        if ($redis->setnx($key, 1)) {
-            $redis->expire($key, 600);
-            $redis->rPush('delayed_previews_queue', json_encode([
-                'uid' => $uid,
-                'id' => $id,
-                'w' => $width,
-                'h' => $height,
-                'crop' => $crop,
-                'mode' => $mode,
-                'mime' => $mimeType
-            ], JSON_UNESCAPED_SLASHES));
         }
     }
 }

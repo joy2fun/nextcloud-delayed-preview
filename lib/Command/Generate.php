@@ -45,8 +45,6 @@ class Generate extends Command {
     /** @var IManager */
     protected $encryptionManager;
 
-    protected $redis;
-
     protected $processedCount = 0;
 
     /**
@@ -108,7 +106,8 @@ class Generate extends Command {
     }
 
     private function startProcessing() {
-        while($element = $this->getRedis()->lPop('delayed_previews_queue')) {
+        $redis = \OC::$server->getGetRedisFactory()->getInstance();
+        while($element = $redis->lPop('delayed_previews_queue')) {
             if (++ $this->processedCount > 2000) {
                 break;
             }
@@ -126,12 +125,12 @@ class Generate extends Command {
                         $file,
                         $item->w,
                         $item->h,
-                        $item->crop,
-                        $item->mode,
-                        $item->mime
+                        $item->crop
                     );
                 } catch (NotFoundException $e) {
                     $this->output->writeln('File not found: '. $file->getPath());
+                } catch (\Exception $e) {
+                    \OC::$server->getLogger()->error('generate delayed preview error: ', $e->getMessage());
                 }
 
             } else {
@@ -167,14 +166,5 @@ class Generate extends Command {
 
         // Seems there is already a running process generating previews
         return true;
-    }
-
-    protected function getRedis() {
-        if ($this->redis === null) {
-            $this->redis = new \Redis;
-            $config = $this->config->getSystemValue("redis");
-            $this->redis->connect($config['host'], $config['port'], $config['timeout']);
-        }
-        return $this->redis;
     }
 }
