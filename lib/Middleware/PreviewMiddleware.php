@@ -42,8 +42,7 @@ class PreviewMiddleware extends Middleware {
                     $file->getId(),
                     $request->getParam('x'),
                     $request->getParam('y'),
-                    !$request->getParam('a'),
-                    $request->getParam('mode')
+                    !$request->getParam('a')
                 );
 
                 if ($methodName === 'getPreviewByFileId') {
@@ -60,8 +59,7 @@ class PreviewMiddleware extends Middleware {
         $id,
         $width,
         $height,
-        $crop,
-        $mode
+        $crop
     ) {
         $redis = \OC::$server->getGetRedisFactory()->getInstance();
         $key = sprintf('dp:%s:%d:%d:%d', $id, $width, $height, $crop);
