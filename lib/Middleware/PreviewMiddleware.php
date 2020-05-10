@@ -19,6 +19,7 @@ class PreviewMiddleware extends Middleware {
             $root = \OC::$server->getRootFolder();
             $userId = \OC::$server->getUserSession()->getUser()->getUID();
             $request = \OC::$server->getRequest();
+            $config = \OC::$server->getConfig();
             $userFolder = $root->getUserFolder($userId);
 
             if ($methodName === 'getPreview') {
@@ -45,8 +46,10 @@ class PreviewMiddleware extends Middleware {
                     !$request->getParam('a')
                 );
 
-                if ($methodName === 'getPreviewByFileId') {
-                    return $this->getWaitingPreviewResponse();
+                if ($config->getSystemValue('enable_waiting_previews', false)) {
+                    if ($methodName === 'getPreviewByFileId') {
+                        return $this->getWaitingPreviewResponse();
+                    }
                 }
             }
         }
