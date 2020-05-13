@@ -37,13 +37,19 @@ class PreviewMiddleware extends Middleware {
                 $file = array_pop($nodes);
             }
 
+            if ($request->getParam('a') === 'false') {
+                $crop = true;
+            } else {
+                $crop = ! $request->getParam('a');
+            }
+
             if ($response->getStatus() === Http::STATUS_NOT_FOUND) {
                 $this->pushToQueue(
                     $userId,
                     $file->getId(),
                     $request->getParam('x'),
                     $request->getParam('y'),
-                    !$request->getParam('a')
+                    $crop
                 );
 
                 if ($config->getSystemValue('enable_waiting_previews', false)) {
