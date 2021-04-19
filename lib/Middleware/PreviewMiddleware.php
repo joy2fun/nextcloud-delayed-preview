@@ -40,21 +40,27 @@ class PreviewMiddleware extends Middleware {
                 $file = array_pop($nodes);
             }
 
-            if ($file->getSize() < 2000000
-                || $request->getParam('x') > 1024
-                || $request->getParam('y') > 1024
-            ) {
-                $mimeType = $file->getMimeType();
-                switch ($mimeType) {
-                    case 'image/png':
-                    case 'image/jpeg':
-                    case 'image/gif':
-                        $response = new FileDisplayResponse($file, Http::STATUS_OK, ['Content-Type' => $file->getMimeType()]);
-                        $response->cacheFor(3600 * 24 * 24);
-                        return $response;
-                        break;
-                    default:
-                        // skip
+            $mimeType = $file->getMimeType();
+
+            if ($mimeType == 'image/heic' && strpos($_SERVER['HTTP_USER_AGENT'], 'Nextcloud') !== false) {
+                // heic for browser
+            } else {
+                if ($file->getSize() < 2000000
+                    || $request->getParam('x') > 1024
+                    || $request->getParam('y') > 1024
+                ) {
+                    switch ($mimeType) {
+                        case 'image/png':
+                        case 'image/jpeg':
+                        case 'image/gif':
+                        case 'image/heic':
+                            $response = new FileDisplayResponse($file, Http::STATUS_OK, ['Content-Type' => $file->getMimeType()]);
+                            $response->cacheFor(3600 * 24 * 24);
+                            return $response;
+                            break;
+                        default:
+                            // skip
+                    }
                 }
             }
 
