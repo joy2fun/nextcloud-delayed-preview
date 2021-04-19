@@ -121,11 +121,12 @@ class Generate extends Command {
             if ($file = array_pop($nodes)) {
                 $this->output->writeln('#'.$item->id . ' ' . $element);
                 try {
-                    $this->previewGenerator->getPreview(
+                    $r = $this->previewGenerator->getPreview(
                         $file,
                         $item->w,
                         $item->h,
-                        $item->crop
+                        $item->crop,
+                        $item->mode ?: 'fill'
                     );
                 } catch (NotFoundException $e) {
                     $this->output->writeln('File not found: '. $file->getPath());

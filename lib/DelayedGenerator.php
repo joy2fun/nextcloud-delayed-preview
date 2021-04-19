@@ -399,7 +399,6 @@ class DelayedGenerator {
      */
     private function getCachedPreview(ISimpleFolder $previewFolder, $width, $height, $crop, $mimeType, $prefix) {
         $path = $this->generatePath($width, $height, $crop, $mimeType, $prefix);
-
         return $previewFolder->getFile($path);
     }
 
